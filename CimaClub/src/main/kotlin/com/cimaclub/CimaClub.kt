@@ -149,10 +149,6 @@ class CimaClub : MainAPI() {
         }
     }
 
-    // ---------------------------------------------------------------------
-    //  استخراج الروابط (يدعم الموقع الجديد المبني على Inertia + الطريقة القديمة)
-    // ---------------------------------------------------------------------
-
     private class Ctx(
         val subtitleCallback: (SubtitleFile) -> Unit,
         val callback: (ExtractorLink) -> Unit
@@ -218,7 +214,6 @@ class CimaClub : MainAPI() {
             } catch (_: Exception) {
             }
         }
-        // محاولة طلب Inertia مباشرة (يرجع JSON)
         return try {
             val xhr = app.get(
                 url,
@@ -261,11 +256,7 @@ class CimaClub : MainAPI() {
         }
 
         val links = linkedSetOf<String>()
-
-        // الطريقة الجديدة: بيانات Inertia
         if (json != null) collectUrls(json, links)
-
-        // الطريقة القديمة وعناصر HTML العادية
         doc?.select("ul#watch li[data-watch]")?.forEach { normalize(it.attr("data-watch"))?.let(links::add) }
         doc?.select("iframe[src], iframe[data-src]")?.forEach {
             normalize(it.attr("src").ifBlank { it.attr("data-src") })?.let(links::add)
@@ -290,8 +281,6 @@ class CimaClub : MainAPI() {
             processPage(c, data, 0, ctx)
             if (ctx.found > 0) break
         }
-
-        // احتياطي: الطريقة القديمة (POST)
         if (ctx.found == 0) {
             try {
                 val doc = app.post(
