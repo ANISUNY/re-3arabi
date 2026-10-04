@@ -119,8 +119,6 @@ class TukTukHd : MainAPI() {
         return grouped.values.toList()
     }
 
-    // ---------- أدوات مساعدة للحلقات ----------
-
     private fun decodeUrl(url: String): String =
         runCatching { URLDecoder.decode(url, "UTF-8") }.getOrDefault(url)
 
@@ -131,8 +129,6 @@ class TukTukHd : MainAPI() {
     private fun seasonNumberOf(text: String): Int? =
         Regex("""season[\s\-]*(\d+)""", RegexOption.IGNORE_CASE).find(text)?.groupValues?.get(1)?.toIntOrNull()
             ?: Regex("""الموسم[\s\-]*(\d+)""").find(text)?.groupValues?.get(1)?.toIntOrNull()
-
-    // الجزء من الرابط قبل "الحلقة" ويمثل اسم المسلسل/الموسم
     private fun slugPrefix(url: String): String? {
         val slug = decodeUrl(url).trimEnd('/').substringAfterLast("/")
         val idx = slug.indexOf("الحلقة")
@@ -173,7 +169,6 @@ class TukTukHd : MainAPI() {
 
         val decodedUrl = decodeUrl(url)
         val hasListMarkup = doc.select(".allepcont, .allseasonss").isNotEmpty()
-        // صفحة حلقة مفردة (تأتي من نتائج البحث)
         val isEpisodePage = Regex("""الحلقة[\s\-]*\d+""").containsMatchIn(decodedUrl) ||
                 Regex("""الحلقة\s*\d+""").containsMatchIn(fullTitle)
         val isSeries = hasListMarkup || isEpisodePage
@@ -189,8 +184,6 @@ class TukTukHd : MainAPI() {
 
         val pageSeason = seasonNumberOf(decodedUrl) ?: seasonNumberOf(fullTitle) ?: 1
         var episodes: List<Episode> = emptyList()
-
-        // 1) الطريقة الأصلية: قائمة المواسم / الحلقات في الصفحة
         val seasonElements = doc.select(".allseasonss .Block--Item a")
         if (seasonElements.isNotEmpty()) {
             episodes = seasonElements.amap { seasonEl ->
@@ -205,8 +198,6 @@ class TukTukHd : MainAPI() {
         if (episodes.isEmpty()) {
             episodes = parseEpisodeAnchors(doc, pageSeason)
         }
-
-        // 2) صفحة حلقة: نجمع روابط الحلقات التي تخص نفس المسلسل من الصفحة
         if (episodes.isEmpty()) {
             val prefix = slugPrefix(url)
             if (prefix != null) {
@@ -223,8 +214,6 @@ class TukTukHd : MainAPI() {
                 }
             }
         }
-
-        // 3) آخر حل: الحلقة الحالية نفسها كحلقة وحيدة (حتى لا تكون القائمة فارغة)
         if (episodes.isEmpty()) {
             episodes = listOf(
                 newEpisode(url) {
@@ -235,8 +224,6 @@ class TukTukHd : MainAPI() {
                 }
             )
         }
-
-        // تأكد أن الحلقة التي فُتحت من البحث موجودة في القائمة
         if (isEpisodePage && episodes.none { it.data == url }) {
             episodes = episodes + newEpisode(url) {
                 this.name = fullTitle
