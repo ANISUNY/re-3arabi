@@ -41,10 +41,6 @@ class AnimePhoenixProvider : MainAPI() {
         println("AnimePhoenixDebug | $msg")
     }
 
-    // ------------------------------------------------------------------
-    //  أدوات مساعدة
-    // ------------------------------------------------------------------
-
     private fun absUrl(href: String?): String? {
         if (href.isNullOrBlank()) return null
         val h = href.trim()
@@ -73,10 +69,6 @@ class AnimePhoenixProvider : MainAPI() {
         if (raw.isBlank() || raw.startsWith("data:")) return null
         return absUrl(raw)
     }
-
-    // ------------------------------------------------------------------
-    //  الصفحة الرئيسية
-    // ------------------------------------------------------------------
 
     private val itemRegex = Regex("""/(animes|movies|episodes)/([^/?#]+)""")
 
@@ -144,10 +136,6 @@ class AnimePhoenixProvider : MainAPI() {
         return newHomePageResponse(rows, hasNext = false)
     }
 
-    // ------------------------------------------------------------------
-    //  البحث (عبر الفهرس الكامل /index)
-    // ------------------------------------------------------------------
-
     private data class IndexItem(val title: String, val url: String, val isMovie: Boolean, val key: String)
 
     private var indexCache: List<IndexItem>? = null
@@ -199,10 +187,6 @@ class AnimePhoenixProvider : MainAPI() {
                 )
             }
     }
-
-    // ------------------------------------------------------------------
-    //  صفحة الأنمي / الفيلم
-    // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse? {
         val response = try {
@@ -259,15 +243,11 @@ class AnimePhoenixProvider : MainAPI() {
         }
 
         collect(document)
-
-        // صفحة كل الحلقات (قد تكون ديناميكية، نحاول فقط)
         try {
             val allEps = app.get(finalUrl.trimEnd('/') + "/episodes", headers = customHeaders, timeout = 45).document
             collect(allEps)
         } catch (_: Exception) {
         }
-
-        // إكمال الحلقات الناقصة اعتماداً على "عدد الحلقات"
         val total = Regex("عدد الحلقات\\s*(\\d+)").find(document.text())?.groupValues?.get(1)?.toIntOrNull()
         if (total != null && total in 1..3000 && (found.isEmpty() || found.keys.min() == 1)) {
             for (n in 1..total) {
@@ -290,10 +270,6 @@ class AnimePhoenixProvider : MainAPI() {
             this.plot = plot
         }
     }
-
-    // ------------------------------------------------------------------
-    //  الروابط
-    // ------------------------------------------------------------------
 
     private data class Cand(val url: String, val name: String, val direct: Boolean)
 
@@ -459,8 +435,6 @@ class AnimePhoenixProvider : MainAPI() {
         fun add(list: List<Cand>) {
             for (c in list) if (!cands.containsKey(c.url)) cands[c.url] = c
         }
-
-        // 1) أي attribute (data-*) في الصفحة قد يحمل رابط/JSON/Base64 للسيرفر
         for (el in document.allElements) {
             val label = el.ownText().trim().ifBlank { el.text().trim() }
                 .replace(Regex("\\s*Watch$", RegexOption.IGNORE_CASE), "")
@@ -474,8 +448,6 @@ class AnimePhoenixProvider : MainAPI() {
                 }
             }
         }
-
-        // 2) روابط داخل السكربتات
         val scriptLink = Regex("""\"(?:link|url|embed|src|file)\"\s*:\s*\"(https?:[^\"]+)\"""")
         for (s in document.select("script:not([src])")) {
             for (m in scriptLink.findAll(s.data())) {
@@ -484,8 +456,6 @@ class AnimePhoenixProvider : MainAPI() {
                 add(l)
             }
         }
-
-        // 3) iframe مباشرة
         for (f in document.select("iframe[src], iframe[data-src]")) {
             val l = mutableListOf<Cand>()
             addLink(f.attr("src").ifBlank { f.attr("data-src") }, "Phoenix", false, l)
@@ -494,7 +464,6 @@ class AnimePhoenixProvider : MainAPI() {
 
         dbg("loadLinks candidates = ${cands.size} for $data")
         if (cands.isEmpty()) {
-            // للمساعدة في التشخيص: اطبع خصائص عناصر "Watch"
             document.select("a, button, li").filter { it.text().contains("Watch", true) }.take(5).forEach {
                 dbg("watch element: ${it.outerHtml().take(300)}")
             }
