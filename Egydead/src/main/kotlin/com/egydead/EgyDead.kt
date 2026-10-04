@@ -535,11 +535,6 @@ class EgyDead : MainAPI() {
         }
     }
 
-    // =====================================================================
-    //  loadLinks (مُعاد كتابتها): محاولات متعددة لجلب صفحة السيرفرات
-    //  + استخراج عام للروابط عند فشل الـ extractors المعروفة
-    // =====================================================================
-
     private val junkHostsExact = listOf(
         "facebook.com", "twitter.com", "x.com", "t.me", "instagram.com",
         "youtube.com", "youtu.be", "whatsapp.com", "api.whatsapp.com",
@@ -628,8 +623,6 @@ class EgyDead : MainAPI() {
                     if (isJunkLink(n)) return
                     out += Cand(n, name?.takeIf { it.isNotBlank() }, server)
                 }
-
-                // قوائم السيرفرات (الأسماء القديمة + احتمالات جديدة)
                 val listSelectors = listOf(
                     "ul.donwload-servers-list li", "ul.download-servers-list li",
                     "div.donwload-servers-list li", "ul.serversList li", "ul.servers-list li",
@@ -651,8 +644,6 @@ class EgyDead : MainAPI() {
                         add(raw, name?.trim(), true)
                     }
                 }
-
-                // أي عنصر يحمل رابط سيرفر
                 for (attr in listOf("data-link", "data-url", "data-src", "data-embed", "data-watch", "data-href")) {
                     for (el in document.select("[$attr]")) {
                         val name = el.attr("data-name").ifBlank { el.attr("data-provider") }
@@ -663,8 +654,6 @@ class EgyDead : MainAPI() {
                 for (f in document.select("iframe[src], iframe[data-src]")) {
                     add(f.attr("src").ifBlank { f.attr("data-src") }, null, true)
                 }
-
-                // روابط خارجية عادية (غالباً تحميل)
                 for (a in document.select("a[href]")) {
                     val href = a.attr("href")
                     if (href.startsWith("http") && !hostOf(href).contains("egydead")) {
@@ -713,8 +702,6 @@ class EgyDead : MainAPI() {
                                         }
                                     } catch (_: Exception) {}
                                 }
-
-                                // لم تتعرف أي extractor على الرابط -> محاولة عامة
                                 if (local.get() == 0 && c.isServer) {
                                     val n = genericExtract(c.url, data, c.name, callback)
                                     if (n > 0) found.addAndGet(n)
@@ -724,16 +711,11 @@ class EgyDead : MainAPI() {
                     }.awaitAll()
                 }
             }
-
-            // الصفحة الأصلية (تفيدنا لقراءة الفورم + كاحتياط)
             val pageDoc = try { httpGet(originalUrl, referer = originalUrl) } catch (e: Exception) { null }
-
-            // محاولات جلب صفحة السيرفرات بالترتيب
             val attempts: List<suspend () -> Pair<Document?, String>> = listOf(
                 { Pair(try { httpPost(watchPageUrl, mapOf("View" to "1"), originalUrl) } catch (e: Exception) { null }, watchPageUrl) },
                 { Pair(try { httpPost(baseUrl, mapOf("View" to "1"), originalUrl) } catch (e: Exception) { null }, baseUrl) },
                 {
-                    // استخدم الفورم الحقيقي الموجود في الصفحة (اسم الحقل/الـ action)
                     val form = pageDoc?.selectFirst("form:has(input[name~=(?i)view]), form:has(button[name~=(?i)view])")
                     if (form != null) {
                         val action = normalizeUrl(form.attr("action").ifBlank { baseUrl }, baseUrl) ?: baseUrl
