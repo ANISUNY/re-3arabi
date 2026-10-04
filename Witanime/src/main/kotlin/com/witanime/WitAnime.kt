@@ -40,8 +40,6 @@ class WitAnime : MainAPI() {
         @Volatile var isWebViewOpen = false
         @Volatile var lastWebViewOpenTime = 0L
     }
-
-    // ======================= Mega WebView interceptor =======================
     object PlayerAccess {
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
         private var isMonitoring = false
@@ -357,9 +355,6 @@ class WitAnime : MainAPI() {
     init {
         PlayerAccess.startMonitoring()
     }
-
-    // ============================= Helpers =============================
-    // اجعلها true فقط عند الحاجة لعرض سطور التشخيص دائماً
     private val DEBUG = false
 
     private val episodeUrlRegex = Regex("""/watch/([^/?#]+)/([^/?#]+)""")
@@ -422,8 +417,6 @@ class WitAnime : MainAPI() {
         q in 1..719 -> "SD"
         else -> "?"
     }
-
-    // أولوية الترتيب: FHD ثم HD ثم 4K ثم SD ثم غير معروف
     private fun qualityRank(q: Int): Int = when {
         q == 1080 -> 0
         q == 720 -> 1
@@ -506,8 +499,6 @@ class WitAnime : MainAPI() {
             .filter { a -> a.parents().none { it.tagName() == "aside" || it.tagName() == "nav" || it.tagName() == "footer" } }
             .mapNotNull { cardToResponse(it, withEpisode = false) }
             .distinctBy { it.url }
-
-    // ============================= Main page =============================
     override val mainPage = mainPageOf(
         "home" to "الرئيسية",
         "$mainUrl/movies" to "كل الأفلام",
@@ -568,8 +559,6 @@ class WitAnime : MainAPI() {
         result.addAll(others)
         return newHomePageResponse(result, false)
     }
-
-    // ============================= Search =============================
     private fun collectSuggest(node: Any?, out: MutableList<SearchResponse>) {
         when (node) {
             is JSONObject -> {
@@ -616,8 +605,6 @@ class WitAnime : MainAPI() {
             emptyList()
         }
     }
-
-    // ============================= Load =============================
     override suspend fun load(url: String): LoadResponse {
         var pageUrl = url
         var res = app.get(pageUrl, interceptor = cfKiller)
@@ -717,8 +704,6 @@ class WitAnime : MainAPI() {
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
-
-    // ============================= Sources =============================
     private val iframeHeaders = mapOf(
         "Sec-Fetch-Dest" to "iframe",
         "Sec-Fetch-Mode" to "navigate",
@@ -770,8 +755,6 @@ class WitAnime : MainAPI() {
             is JSONArray -> for (i in 0 until node.length()) collectEntries(node.opt(i), qualityKey, out)
         }
     }
-
-    // جلسة الصفحة: الـ CSRF + الكوكيز المتراكمة
     private class Session(
         val html: String,
         val document: org.jsoup.nodes.Document,
@@ -795,8 +778,6 @@ class WitAnime : MainAPI() {
     }
 
     private data class SourcesResult(val session: Session, val code: Int, val text: String)
-
-    // يعيد المحاولة بعدة استراتيجيات عند خطأ 419 (CSRF mismatch)
     private suspend fun fetchSources(data: String, first: Session): SourcesResult {
         var session = first
         var code = -1
@@ -840,8 +821,6 @@ class WitAnime : MainAPI() {
         }
         return SourcesResult(session, code, text)
     }
-
-    // ============================= Extractors =============================
     private suspend fun extractMedia(
         body: String,
         referer: String,
@@ -1169,8 +1148,6 @@ class WitAnime : MainAPI() {
         }
         return handled
     }
-
-    // ============================= loadLinks =============================
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -1222,8 +1199,6 @@ class WitAnime : MainAPI() {
         Regex("""[a-f0-9]{64}""").findAll(html).map { it.value }.distinct()
             .filter { it !in knownTokens }.take(10)
             .forEach { entries.add(SrcEntry("", it, null, null, null)) }
-
-        // FHD ثم HD أولاً
         val sortedEntries = entries.withIndex()
             .sortedWith(compareBy({ qualityRank(qualityValue(it.value.quality)) }, { it.index }))
         val sortedPageLinks = pageLinks.entries.sortedBy { qualityRank(it.value.first) }
