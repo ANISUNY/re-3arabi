@@ -467,16 +467,10 @@ class WitAnime : MainAPI() {
         PlayerAccess.startMonitoring()
     }
 
-    // =====================================================================
-    //  أدوات مساعدة عامة
-    // =====================================================================
-
     private val DEBUG = true  // true = يعرض سطور تشخيص داخل قائمة السيرفرات
 
     private val episodeUrlRegex = Regex("""/watch/([^/?#]+)/([^/?#]+)""")
     private val tokenRegex = Regex("^[a-f0-9]{64}$")
-
-    // مواقع الملفات/الاستضافة التي نلتقط روابطها من صفحة الحلقة (قسم التحميل)
     private val fileHosts = listOf(
         "mediafire.com", "gofile.io", "4shared.com", "mega.nz", "mega.io",
         "drive.google.com", "pixeldrain", "krakenfiles", "streamtape", "dood",
@@ -514,8 +508,6 @@ class WitAnime : MainAPI() {
         val s = img.attr("src").ifBlank { img.attr("data-src") }.ifBlank { img.attr("data-lazy-src") }
         return s.takeIf { it.isNotBlank() }?.let { fixUrl(it) }
     }
-
-    // -------- الجودة --------
     private fun qualityValue(label: String?): Int {
         val l = label?.trim()?.uppercase().orEmpty()
         return when {
@@ -553,16 +545,10 @@ class WitAnime : MainAPI() {
         return null
     }
 
-    // =====================================================================
-    //  الصفحة الرئيسية
-    // =====================================================================
-
     private fun animeUrlFromAny(href: String): String {
         val m = episodeUrlRegex.find(href)
         return if (m != null) "$mainUrl/anime/${m.groupValues[1]}" else fixUrl(href)
     }
-
-    // بطاقة أنمي/حلقة/فيلم (بنية الموقع: h3 للعنوان، أو span[dir=ltr] في الشريط الجانبي)
     private fun cardToResponse(a: Element, withEpisode: Boolean): SearchResponse? {
         val href = a.attr("href")
         if (href.isBlank()) return null
@@ -591,8 +577,6 @@ class WitAnime : MainAPI() {
             .filter { a -> a.parents().none { it.tagName() == "nav" || it.tagName() == "footer" } }
             .mapNotNull { cardToResponse(it, withEpisode = true) }
             .distinctBy { it.url }
-
-    // أقرب حاوية للعنوان تحتوي بطاقات (قسم، كاروسيل، أو قائمة الشريط الجانبي)
     private fun containerFor(h2: Element): Element? {
         var c: Element? = h2.parent()
         var i = 0
@@ -603,8 +587,6 @@ class WitAnime : MainAPI() {
         }
         return null
     }
-
-    // صفحات القوائم (/movies /seasonal /browse): بطاقات المحتوى الرئيسي دون الشريط الجانبي
     private fun listingCards(doc: org.jsoup.nodes.Document): List<SearchResponse> =
         doc.select("a[href*=/anime/], a[href*=/movie/]")
             .filter { a -> a.parents().none { it.tagName() == "aside" || it.tagName() == "nav" || it.tagName() == "footer" } }
@@ -635,7 +617,6 @@ class WitAnime : MainAPI() {
         val others = ArrayList<HomePageList>()
 
         for (h2 in document.select("h2")) {
-            // عناوين شرائح الواجهة الكبيرة ليست صفوفاً
             if (h2.parents().any { it.attr("data-test") == "hero-carousel" }) continue
             val title = h2.text().trim()
             if (title.isBlank()) continue
@@ -651,8 +632,6 @@ class WitAnime : MainAPI() {
                 else -> others.add(HomePageList(title, items))
             }
         }
-
-        // احتياط إن غاب صف من الرئيسية: نجلبه من صفحته
         if (movies == null) {
             movies = try {
                 listingCards(app.get("$mainUrl/movies", interceptor = cfKiller).document).take(30)
@@ -675,10 +654,6 @@ class WitAnime : MainAPI() {
         result.addAll(others)
         return newHomePageResponse(result, false)
     }
-
-    // =====================================================================
-    //  البحث  (الموقع يعلن /search?q=  وله /search/suggest للاقتراحات)
-    // =====================================================================
 
     private fun collectSuggest(node: Any?, out: MutableList<SearchResponse>) {
         when (node) {
@@ -713,8 +688,6 @@ class WitAnime : MainAPI() {
             emptyList()
         }
         if (fromPage.isNotEmpty()) return fromPage
-
-        // احتياط: واجهة الاقتراحات (JSON)
         return try {
             val res = app.get(
                 "$mainUrl/search/suggest?q=$q",
@@ -730,14 +703,9 @@ class WitAnime : MainAPI() {
         }
     }
 
-    // =====================================================================
-    //  صفحة الأنمي
-    // =====================================================================
-
     override suspend fun load(url: String): LoadResponse {
         var pageUrl = url
         var res = app.get(pageUrl, interceptor = cfKiller)
-        // بطاقة فيلم قد تشير إلى /anime/ بينما صفحته الحقيقية /movie/
         if (res.code == 404 && pageUrl.contains("/anime/")) {
             val alt = pageUrl.replace("/anime/", "/movie/")
             val r2 = try { app.get(alt, interceptor = cfKiller) } catch (e: Exception) { null }
@@ -791,8 +759,6 @@ class WitAnime : MainAPI() {
                 this.posterUrl = imgUrl(a.selectFirst("img"))
             }
         }
-
-        // 1) قائمة الحلقات المعتادة  2) أي رابط مشاهدة لنفس الأنمي/الفيلم في الصفحة
         var episodes = parseEpisodes(
             document.select("div[data-episode-list]").firstOrNull()?.select("a[href*=/watch/]")?.toList().orEmpty()
         )
@@ -802,7 +768,6 @@ class WitAnime : MainAPI() {
             )
         }
         if (episodes.isEmpty() && isMovie) {
-            // 3) الفيلم قد لا يملك قائمة: نجرب روابط المشاهدة المحتملة ونأخذ أول صفحة فيها مصادر
             val probes = listOf("$mainUrl/watch/$slug/1", "$mainUrl/watch/$slug", "$mainUrl/movie/$slug/watch")
             for (p in probes) {
                 val ok = try {
@@ -817,7 +782,6 @@ class WitAnime : MainAPI() {
                 }
             }
         }
-        // 4) آخر حل: صفحة الفيلم نفسها (loadLinks يبحث فيها عن المصادر وروابط التحميل)
         if (episodes.isEmpty() && isMovie) {
             episodes = listOf(newEpisode(url) { this.name = title; this.episode = 1 })
         }
@@ -842,10 +806,6 @@ class WitAnime : MainAPI() {
         }
     }
 
-    // =====================================================================
-    //  استخراج الروابط (كل السيرفرات + كل سيرفرات التحميل)
-    // =====================================================================
-
     private val iframeHeaders = mapOf(
         "Sec-Fetch-Dest" to "iframe",
         "Sec-Fetch-Mode" to "navigate",
@@ -864,8 +824,6 @@ class WitAnime : MainAPI() {
         val u = k.uppercase()
         return u in setOf("SD", "HD", "FHD", "UHD", "4K") || Regex("""\d{3,4}P?""").matches(u)
     }
-
-    // يمشي على JSON بالكامل فيلتقط أي كائن فيه token أو رابط مباشر (players / downloads / ...)
     private fun collectEntries(node: Any?, qualityKey: String, out: MutableList<SrcEntry>) {
         when (node) {
             is JSONObject -> {
@@ -898,8 +856,6 @@ class WitAnime : MainAPI() {
             is JSONArray -> for (i in 0 until node.length()) collectEntries(node.opt(i), qualityKey, out)
         }
     }
-
-    // ------- ميديا مباشرة داخل نص صفحة -------
     private suspend fun extractMedia(
         body: String,
         referer: String,
@@ -943,8 +899,6 @@ class WitAnime : MainAPI() {
         }
         return any
     }
-
-    // ------- MediaFire -------
     private suspend fun resolveMediaFire(
         link: String, name: String, quality: Int, callback: (ExtractorLink) -> Unit
     ): Boolean {
@@ -970,8 +924,6 @@ class WitAnime : MainAPI() {
         )
         return true
     }
-
-    // ------- Gofile -------
     private suspend fun resolveGofile(
         link: String, name: String, quality: Int, callback: (ExtractorLink) -> Unit
     ): Boolean {
@@ -1004,8 +956,6 @@ class WitAnime : MainAPI() {
         }
         return any
     }
-
-    // ------- 4shared (يدعم SD / HD / FHD إن وُجدت داخل الصفحة) -------
     private suspend fun resolveFourShared(
         link: String, name: String, quality: Int, prefetched: String?, callback: (ExtractorLink) -> Unit
     ): Boolean {
@@ -1016,7 +966,6 @@ class WitAnime : MainAPI() {
 
         var any = false
         for (b in bodies) {
-            // og:video / source / data-* إضافة إلى أي mp4/m3u8
             val og = Regex("""property=["']og:video(?::url|:secure_url)?["']\s+content=["']([^"']+)""")
                 .findAll(b).map { it.groupValues[1] }.toList()
             if (extractMedia(b, ref, "$name • 4shared", quality, callback)) any = true
@@ -1032,8 +981,6 @@ class WitAnime : MainAPI() {
             }
         }
         if (any) return true
-
-        // محاولة صفحة التضمين
         val id = Regex("""4shared\.com/(?:web/embed/file|video|file|embed|s)/([A-Za-z0-9_\-]+)""")
             .find(link)?.groupValues?.get(1)
         if (id != null) {
@@ -1049,8 +996,6 @@ class WitAnime : MainAPI() {
         }
         return false
     }
-
-    // ------- Workupload (محاولة عبر واجهتهم) -------
     private suspend fun resolveWorkupload(
         link: String, name: String, quality: Int, callback: (ExtractorLink) -> Unit
     ): Boolean {
@@ -1083,8 +1028,6 @@ class WitAnime : MainAPI() {
         )
         return true
     }
-
-    // سيرفرات غير معروفة (hgcloud / videa / videas / yonaplay ...): JS مضغوط، iframe، أزرار تشغيل، base64
     private suspend fun scanGenericHost(
         link: String,
         prefetched: String?,
@@ -1127,8 +1070,6 @@ class WitAnime : MainAPI() {
         }
         return any
     }
-
-    // يحوّل أي رابط خارجي إلى روابط تشغيل: المستخرجات الجاهزة أولاً ثم معالجاتنا الخاصة
     private suspend fun resolveExternal(
         link: String,
         referer: String,
@@ -1140,7 +1081,6 @@ class WitAnime : MainAPI() {
         depth: Int = 0
     ): Boolean {
         val host = hostOf(link) ?: return false
-        // بعض المستخرجات تُرجع جودة غير معروفة: نعتمد جودة التبويب (SD/HD/FHD) بدلاً منها
         val callback: (ExtractorLink) -> Unit = { l ->
             if (l.quality == Qualities.Unknown.value && quality != Qualities.Unknown.value) l.quality = quality
             callback0(l)
@@ -1176,8 +1116,6 @@ class WitAnime : MainAPI() {
             false
         }
     }
-
-    // يفحص بوابة السيرفر: تحويل خارجي، iframe، روابط ميديا، أو روابط تحميل
     private suspend fun scanUrl(
         url: String,
         referer: String,
@@ -1285,8 +1223,6 @@ class WitAnime : MainAPI() {
         } catch (e: Exception) {
             logError(e)
         }
-
-        // روابط التحميل الظاهرة في الصفحة (gofile / workupload / mediafire ...) مع جودة كل مجموعة (FHD/HD/SD)
         val hostLabels = listOf(
             "gofile", "workupload", "mediafire", "mega", "4shared", "pixeldrain",
             "krakenfiles", "terabox", "send", "drive", "yonaplay", "hgcloud", "videa"
@@ -1301,8 +1237,6 @@ class WitAnime : MainAPI() {
             val shown = label.takeIf { labelHit } ?: hostOf(link)?.removePrefix("www.") ?: "Download"
             pageLinks.putIfAbsent(link, q to shown)
         }
-
-        // رموز (tokens) موجودة في الصفحة ولم تأتِ من واجهة المصادر
         val knownTokens = entries.mapNotNull { it.token }.toSet()
         Regex("""[a-f0-9]{64}""").findAll(html).map { it.value }.distinct()
             .filter { it !in knownTokens }.take(10)
@@ -1336,7 +1270,6 @@ class WitAnime : MainAPI() {
                                 val quality = qualityValue(entry.quality)
 
                                 if (entry.token != null) {
-                                    // الموقع يطلب هذه الخطوة قبل فتح البوابة
                                     app.post(
                                         "$mainUrl/watch/stream-source/${entry.token}",
                                         headers = ajaxHeaders,
@@ -1387,8 +1320,6 @@ class WitAnime : MainAPI() {
 
             jobs.awaitAll()
         }
-
-        // تشخيص: ملخص نجاح/فشل كل سيرفر (عطّله بجعل DEBUG = false بعد انتهاء الاختبار)
         if (DEBUG || emitted.get() == 0) {
             val summary = results.sorted().joinToString(" | ")
             val hosts = debug.filter { it.startsWith("host:") }
@@ -1415,8 +1346,6 @@ class WitAnime : MainAPI() {
 
         return emitted.get() > 0
     }
-
-    // جودة مجموعة التحميل: أقرب عنصر أب يبدأ نصه بـ FHD/HD/SD ويحتوي جودة واحدة فقط
     private fun qualityFromAncestors(el: Element): Int? {
         val startRx = Regex("""^\s*(4K|UHD|FHD|HD|SD)(?![A-Za-z])""", RegexOption.IGNORE_CASE)
         val anyRx = Regex("""(?<![A-Za-z])(FHD|HD|SD)(?![A-Za-z])""", RegexOption.IGNORE_CASE)
