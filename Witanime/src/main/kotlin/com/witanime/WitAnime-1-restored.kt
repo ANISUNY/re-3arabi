@@ -40,8 +40,6 @@ class WitAnime : MainAPI() {
         @Volatile var isWebViewOpen = false
         @Volatile var lastWebViewOpenTime = 0L
     }
-
-    // ======================= Mega WebView interceptor =======================
     object PlayerAccess {
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
         private var isMonitoring = false
@@ -268,8 +266,6 @@ class WitAnime : MainAPI() {
                 }
             }
         }
-
-        // تحويل رابط Mega إلى مشغّل embed النظيف بدل صفحة الموقع الكاملة
         private fun megaEmbed(u: String): String {
             Regex("""mega\.(?:nz|io)/(?:file|embed)/([A-Za-z0-9_-]+)#([A-Za-z0-9_-]+)""").find(u)?.let {
                 return "https://mega.nz/embed/${it.groupValues[1]}#${it.groupValues[2]}"
@@ -376,9 +372,6 @@ class WitAnime : MainAPI() {
     init {
         PlayerAccess.startMonitoring()
     }
-
-    // ============================= Helpers =============================
-    // اجعلها true فقط عند الحاجة لعرض سطور التشخيص دائماً
     private val DEBUG = false
 
     private val episodeUrlRegex = Regex("""/watch/([^/?#]+)/([^/?#]+)""")
@@ -441,8 +434,6 @@ class WitAnime : MainAPI() {
         q in 1..719 -> "SD"
         else -> "?"
     }
-
-    // أولوية الترتيب: FHD ثم HD ثم 4K ثم SD ثم غير معروف
     private fun qualityRank(q: Int): Int = when {
         q == 1080 -> 0
         q == 720 -> 1
@@ -525,8 +516,6 @@ class WitAnime : MainAPI() {
             .filter { a -> a.parents().none { it.tagName() == "aside" || it.tagName() == "nav" || it.tagName() == "footer" } }
             .mapNotNull { cardToResponse(it, withEpisode = false) }
             .distinctBy { it.url }
-
-    // ============================= Main page =============================
     override val mainPage = mainPageOf(
         "home" to "الرئيسية",
         "$mainUrl/movies" to "كل الأفلام",
@@ -549,8 +538,6 @@ class WitAnime : MainAPI() {
         var movies: List<SearchResponse>? = null
         var season: List<SearchResponse>? = null
         val others = ArrayList<HomePageList>()
-
-        // الشرائح المميزة في أعلى الصفحة (hero carousel)
         val hero = document.select("[data-hero-slide]").mapNotNull { sl ->
             val a = sl.selectFirst("h2 a") ?: return@mapNotNull null
             val href = a.attr("href")
@@ -599,8 +586,6 @@ class WitAnime : MainAPI() {
         result.addAll(others)
         return newHomePageResponse(result, false)
     }
-
-    // ============================= Search =============================
     private fun collectSuggest(node: Any?, out: MutableList<SearchResponse>) {
         when (node) {
             is JSONObject -> {
@@ -647,8 +632,6 @@ class WitAnime : MainAPI() {
             emptyList()
         }
     }
-
-    // ============================= Load =============================
     override suspend fun load(url: String): LoadResponse {
         var pageUrl = url
         var res = app.get(pageUrl, interceptor = cfKiller)
@@ -748,8 +731,6 @@ class WitAnime : MainAPI() {
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
-
-    // ============================= Sources =============================
     private val iframeHeaders = mapOf(
         "Sec-Fetch-Dest" to "iframe",
         "Sec-Fetch-Mode" to "navigate",
@@ -835,8 +816,6 @@ class WitAnime : MainAPI() {
             }
         }
     }
-
-    // جلسة الصفحة: الـ CSRF + الكوكيز المتراكمة
     private class Session(
         val html: String,
         val document: org.jsoup.nodes.Document,
@@ -848,8 +827,6 @@ class WitAnime : MainAPI() {
                 try { java.net.URLDecoder.decode(it, "UTF-8") } catch (e: Exception) { it }
             }
     }
-
-    // كاش للجلسات كي لا نُغرق الموقع بالطلبات (يتجنب خطأ 429)
     private val sessionCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, Session>>()
 
     private fun retryAfterMs(header: String?, attempt: Int): Long =
@@ -877,8 +854,6 @@ class WitAnime : MainAPI() {
         }
         throw ErrorLoadingException("429")
     }
-
-    // اكتشاف مسارات الموقع (بوابات التحميل ...) من ملفات الـ JS الخاصة به
     @Volatile private var cachedEndpoints: List<String>? = null
 
     private suspend fun discoverEndpoints(doc: org.jsoup.nodes.Document): List<String> {
@@ -906,8 +881,6 @@ class WitAnime : MainAPI() {
     }
 
     private data class SourcesResult(val session: Session, val code: Int, val text: String)
-
-    // يعيد المحاولة بتمهّل: 429 => ينتظر Retry-After، 419 => جلسة جديدة
     private suspend fun fetchSources(data: String, first: Session): SourcesResult {
         var session = first
         var code = -1
@@ -955,8 +928,6 @@ class WitAnime : MainAPI() {
         }
         return SourcesResult(session, code, text)
     }
-
-    // ============================= Extractors =============================
     private suspend fun extractMedia(
         body: String,
         referer: String,
@@ -1293,8 +1264,6 @@ class WitAnime : MainAPI() {
         }
         return handled
     }
-
-    // ============================= loadLinks =============================
     private suspend fun notice(text: String, idx: Int, callback: (ExtractorLink) -> Unit) {
         callback(
             newExtractorLink(source = "WitAnime", name = text.take(800), url = "https://example.invalid/n$idx") {
@@ -1354,9 +1323,6 @@ class WitAnime : MainAPI() {
             } else {
                 collectEntries(root, "", entries)
             }
-
-            // لا نفترض أن downloads كائن فقط؛ بعض إصدارات الموقع ترسله
-            // كمصفوفة أو تحت downloadServers / download_servers.
             fun collectDownloadNode(node: Any?, qualityKey: String = "", label: String? = null) {
                 when (node) {
                     is JSONObject -> {
@@ -1462,9 +1428,6 @@ class WitAnime : MainAPI() {
                 }
             }
             findDownloadNodes(root)
-
-            // احتياط أخير: إذا كان الموقع يضع رابط MediaFire/Gofile/Workupload
-            // كنص عادي داخل JSON بدل حقول url/link.
             val fallbackHosts = Regex(
                 """https?://(?:www\.)?(?:mediafire\.com|gofile\.io|workupload\.com|4shared\.com|pixeldrain\.com|krakenfiles\.com|send\.cm|terabox\.com)/[^\s"'<>\]+""",
                 RegexOption.IGNORE_CASE
@@ -1499,8 +1462,6 @@ class WitAnime : MainAPI() {
         } catch (e: Exception) {
             logError(e)
         }
-
-        // مسارات بوابات التحميل (تُكتشف من ملفات JS الموقع)
         val endpoints = try { discoverEndpoints(doc) } catch (e: Exception) { emptyList() }
         fun pickDl(vararg keys: String): String? = endpoints.firstOrNull { e ->
             val l = e.lowercase()
@@ -1523,8 +1484,6 @@ class WitAnime : MainAPI() {
             val shown = label.takeIf { labelHit } ?: hostOf(link)?.removePrefix("www.") ?: "Download"
             pageLinks.putIfAbsent(link, q to shown)
         }
-
-        // روابط التحميل المخبأة داخل الـ HTML أو الـ JSON (gofile / mediafire / workupload ...)
         val dlHostRx = Regex("""https?://(?:www\.)?(?:gofile\.io|mediafire\.com|workupload\.com|4shared\.com|pixeldrain\.com|krakenfiles\.com|send\.cm|terabox\.com)/[^\s"'<>\)]+""")
         for (src in listOf(unescape(html), unescape(sourcesText))) {
             for (m in dlHostRx.findAll(src)) {
@@ -1536,11 +1495,6 @@ class WitAnime : MainAPI() {
                 pageLinks.putIfAbsent(link, q to shown)
             }
         }
-
-        // Do not invent download entries from arbitrary 64-character strings in the page.
-        // Tokens must come from the structured players/downloads payload.
-
-        // FHD ثم HD أولاً
         val sortedEntries = entries.withIndex()
             .sortedWith(compareBy({ qualityRank(qualityValue(it.value.quality)) }, { it.index }))
         val sortedPageLinks = pageLinks.entries.sortedBy { qualityRank(it.value.first) }
@@ -1555,7 +1509,6 @@ class WitAnime : MainAPI() {
         }
         val debug = mutableListOf<String>()
         val results = java.util.concurrent.ConcurrentLinkedQueue<String>()
-        // تقليل التوازي لتفادي حد الطلبات (429)
         val semaphore = Semaphore(4)
 
         coroutineScope {
@@ -1584,16 +1537,12 @@ class WitAnime : MainAPI() {
                                             cookies = cookies,
                                             interceptor = cfKiller
                                         )
-
-                                        // download-source is the primary resolver. Do not discard its response.
                                         val sourceBody = unescape(ssr.text)
                                         if (extractMedia(sourceBody, sourceUrl, nm, quality, tracked)) {
                                             ok = true
                                         }
 
                                         val candidates = LinkedHashSet<String>()
-
-                                        // Direct host URLs returned by the source endpoint.
                                         val hostRx = Regex(
                                             """https?://(?:www\.)?(?:mediafire\.com|gofile\.io|workupload\.com|4shared\.com|pixeldrain\.com|krakenfiles\.com|send\.cm|terabox\.com|mega\.nz|mega\.io)/[^\s"'<>\\]+""",
                                             RegexOption.IGNORE_CASE
@@ -1601,8 +1550,6 @@ class WitAnime : MainAPI() {
                                         hostRx.findAll(sourceBody).forEach { m ->
                                             candidates.add(m.value.trimEnd(',', ';', '.', ')', ']'))
                                         }
-
-                                        // JSON/HTML fields that may contain a relative or absolute download URL.
                                         val fieldRx = Regex(
                                             """(?i)["'](?:url|link|href|src|file|download|downloadUrl|download_url|stream|video)["']\s*[:=]\s*["']([^"']+)["']"""
                                         )
@@ -1633,8 +1580,6 @@ class WitAnime : MainAPI() {
                                     } catch (e: Exception) {
                                         logError(e)
                                     }
-
-                                    // Only use download-gate when download-source did not resolve anything.
                                     if (!ok) {
                                         ok = scanUrl(
                                             "$mainUrl$gateBase${entry.token}",
@@ -1683,7 +1628,6 @@ class WitAnime : MainAPI() {
         }
 
         if (emitted.get() == 0) {
-            // نسمح بإعادة فتح الجلسة في المرة القادمة
             sessionCache.remove(data)
             hintFor(sourcesCode)?.let { notice(it, 0, callback) }
         }
