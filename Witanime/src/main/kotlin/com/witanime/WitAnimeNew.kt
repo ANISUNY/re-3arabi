@@ -468,10 +468,6 @@ class WitAnime : MainAPI() {
         PlayerAccess.startMonitoring()
     }
 
-    // ---------------------------------------------------------------------
-    // الموقع الجديد (Laravel + Alpine.js): البطاقات تأتي جاهزة من الخادم
-    // ---------------------------------------------------------------------
-
     private val episodeUrlRegex = Regex("""/watch/([^/?#]+)/([^/?#]+)""")
 
     private fun hostOf(u: String): String? = try {
@@ -479,8 +475,6 @@ class WitAnime : MainAPI() {
     } catch (e: Exception) {
         null
     }
-
-    // رابط الحلقة /watch/slug/N يتحول إلى رابط الأنمي /anime/slug
     private fun animeUrlFromAny(href: String): String {
         val m = episodeUrlRegex.find(href)
         return if (m != null) "$mainUrl/anime/${m.groupValues[1]}" else fixUrl(href)
@@ -531,7 +525,6 @@ class WitAnime : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val q = java.net.URLEncoder.encode(query, "UTF-8")
-        // عنوان البحث الحقيقي لم يتأكد بعد، فنجرب الاحتمالات بالترتيب
         val candidates = listOf(
             "$mainUrl/search?q=$q",
             "$mainUrl/search?query=$q",
@@ -619,8 +612,6 @@ class WitAnime : MainAPI() {
         "Sec-Fetch-Mode" to "navigate",
         "Sec-Fetch-Site" to "same-origin"
     )
-
-    // يفحص صفحة البوابة: تحويل إلى سيرفر خارجي، أو iframe، أو رابط ميديا مباشر
     private suspend fun scanUrl(
         url: String,
         referer: String,
@@ -656,8 +647,6 @@ class WitAnime : MainAPI() {
         }
 
         var handled = false
-
-        // روابط ميديا مباشرة
         Regex("""https?://[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?""")
             .findAll(body)
             .map { it.value }
@@ -677,8 +666,6 @@ class WitAnime : MainAPI() {
                 )
                 handled = true
             }
-
-        // روابط مضمنة: iframe أو تحويل
         val found = LinkedHashSet<String>()
         res.document.select("iframe").forEach { f ->
             val s = f.attr("src").ifBlank { f.attr("data-src") }
@@ -767,15 +754,12 @@ class WitAnime : MainAPI() {
                             val label = entry.label?.takeIf { it.isNotBlank() } ?: "Server ${index + 1}"
                             val versionLabel = if (entry.version == "dub") "مدبلج" else "مترجم"
                             val name = "$label • $versionLabel"
-
-                            // 1) الموقع يطلب هذه الخطوة قبل فتح البوابة
                             app.post(
                                 "$mainUrl/watch/stream-source/$token",
                                 headers = ajaxHeaders,
                                 cookies = cookies,
                                 interceptor = cfKiller
                             )
-                            // 2) البوابة هي ما يُحمَّل داخل iframe في الموقع
                             scanUrl(
                                 "$mainUrl/watch/stream-gate/$token",
                                 data,
@@ -796,7 +780,6 @@ class WitAnime : MainAPI() {
         }
 
         if (emitted.get() == 0) {
-            // سطر تشخيصي مؤقت يظهر في قائمة السيرفرات إذا لم يُستخرج أي رابط
             val note = "sources=${sourcesRes.code} n=${entries.size} " + debug.firstOrNull().orEmpty()
             callback(
                 newExtractorLink(
