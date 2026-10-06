@@ -24,9 +24,6 @@ class WitAnime : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie)
     private val userAgent =
         "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Mobile Safari/537.36"
-
-    // ============================= Helpers =============================
-    // اجعلها true فقط عند الحاجة لعرض سطور التشخيص دائماً
     private val DEBUG = false
 
     private val episodeUrlRegex = Regex("""/watch/([^/?#]+)/([^/?#]+)""")
@@ -99,8 +96,6 @@ class WitAnime : MainAPI() {
         q in 1..719 -> "SD"
         else -> "?"
     }
-
-    // أولوية الترتيب: FHD ثم HD ثم 4K ثم SD ثم غير معروف
     private fun qualityRank(q: Int): Int = when {
         q >= 2160 -> 0
         q >= 1440 -> 1
@@ -184,8 +179,6 @@ class WitAnime : MainAPI() {
             .filter { a -> a.parents().none { it.tagName() == "aside" || it.tagName() == "nav" || it.tagName() == "footer" } }
             .mapNotNull { cardToResponse(it, withEpisode = false) }
             .distinctBy { it.url }
-
-    // ============================= Main page =============================
     override val mainPage = mainPageOf(
         "home" to "الرئيسية",
         "$mainUrl/movies" to "كل الأفلام",
@@ -208,8 +201,6 @@ class WitAnime : MainAPI() {
         var movies: List<SearchResponse>? = null
         var season: List<SearchResponse>? = null
         val others = ArrayList<HomePageList>()
-
-        // الشرائح المميزة في أعلى الصفحة (hero carousel)
         val hero = document.select("[data-hero-slide]").mapNotNull { sl ->
             val a = sl.selectFirst("h2 a") ?: return@mapNotNull null
             val href = a.attr("href")
@@ -258,8 +249,6 @@ class WitAnime : MainAPI() {
         result.addAll(others)
         return newHomePageResponse(result, false)
     }
-
-    // ============================= Search =============================
     private fun collectSuggest(node: Any?, out: MutableList<SearchResponse>) {
         when (node) {
             is JSONObject -> {
@@ -306,8 +295,6 @@ class WitAnime : MainAPI() {
             emptyList()
         }
     }
-
-    // ============================= Load =============================
     override suspend fun load(url: String): LoadResponse {
         var pageUrl = url
         var res = app.get(pageUrl, interceptor = cfKiller)
@@ -407,10 +394,6 @@ class WitAnime : MainAPI() {
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
-
-    // ============================= Current watch-page decoder =============================
-    // The current public Witanime provider uses one watch-page request and decodes
-    // the server registry locally. This avoids the old sources/gate request fan-out.
     private val frameworkHash = "1c0f3441-e3c2-4023-9e8b-bee77ff59adf"
 
     private fun cleanB64(s: String): String = s.replace(Regex("[^A-Za-z0-9+/=]"), "")
@@ -555,8 +538,6 @@ class WitAnime : MainAPI() {
             cache.second.forEach(callback)
             return cache.second.isNotEmpty()
         }
-
-        // One request to the watch page. No /sources, no per-server source/gate fan-out.
         val page = try {
             app.get(data, interceptor = cfKiller)
         } catch (e: Exception) {
@@ -574,8 +555,6 @@ class WitAnime : MainAPI() {
 
         var zG = Regex("""var\\s+_zG\\s*=\\s*\\\"([^\\\"]+)\\\"""").find(html)?.groupValues?.get(1)
         var zH = Regex("""var\\s+_zH\\s*=\\s*\\\"([^\\\"]+)\\\"""").find(html)?.groupValues?.get(1)
-
-        // Inline scripts first. We deliberately do not scan arbitrary JS unless necessary.
         if (zG.isNullOrBlank() || zH.isNullOrBlank()) {
             Regex("""<script[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL).findAll(html).forEach { m ->
                 val js = m.groupValues[1]
@@ -603,12 +582,9 @@ class WitAnime : MainAPI() {
                 if (seen.add(l.url)) emitted.add(l)
             }
             if (emitted.size == before) {
-                // The generic extractor may not support the host. Do not hammer it with retries.
                 continue
             }
         }
-
-        // Downloads are embedded in the page's _m/_s/_pN payload and can be decoded locally.
         var pxM: String? = null
         var pxS = emptyList<String>()
         val pxP = mutableMapOf<String, List<String>>()
